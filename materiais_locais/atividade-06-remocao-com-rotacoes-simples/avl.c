@@ -1,0 +1,29 @@
+#include "avl.h"
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct no_ NO;
+struct no_ { int chave; int altura; NO *esq; NO *dir; };
+struct avl_ { NO *raiz; };
+static int maximo(int a,int b){return a>b?a:b;}
+static int altura_no(NO*n){return n==NULL?0:n->altura;}
+static int fb_no(NO*n){return n==NULL?0:altura_no(n->esq)-altura_no(n->dir);}
+static void atualizar_altura(NO*n){if(n!=NULL)n->altura=1+maximo(altura_no(n->esq),altura_no(n->dir));}
+static NO*no_criar(int chave){NO*n=(NO*)malloc(sizeof(NO));if(n==NULL)return NULL;n->chave=chave;n->altura=1;n->esq=NULL;n->dir=NULL;return n;}
+static NO*rotacao_direita(NO*a){NO*b=a->esq,*t2=b->dir;printf("    ROTACAO DIREITA: A=%d B=%d",a->chave,b->chave);if(t2!=NULL)printf(" T2=%d",t2->chave);printf("\n");b->dir=a;a->esq=t2;atualizar_altura(a);atualizar_altura(b);return b;}
+static NO*rotacao_esquerda(NO*a){NO*b=a->dir,*t2=b->esq;printf("    ROTACAO ESQUERDA: A=%d B=%d",a->chave,b->chave);if(t2!=NULL)printf(" T2=%d",t2->chave);printf("\n");b->esq=a;a->dir=t2;atualizar_altura(a);atualizar_altura(b);return b;}
+
+static NO*rebalancear(NO*r,char operacao[]){int f;if(r==NULL)return NULL;atualizar_altura(r);f=fb_no(r);printf("  Apos %s, verificando %d: hE=%d hD=%d FB=%+d\n",operacao,r->chave,altura_no(r->esq),altura_no(r->dir),f);if(f>1){printf("  >>> GATILHO em %d. Filho esquerdo %d: FB=%+d\n",r->chave,r->esq->chave,fb_no(r->esq));if(fb_no(r->esq)>=0){if(fb_no(r->esq)==0)printf("      Observacao: FB do filho = 0, caso comum apos remocao.\n");return rotacao_direita(r);}printf("      Caso duplo: Parte 2.\n");}else if(f<-1){printf("  >>> GATILHO em %d. Filho direito %d: FB=%+d\n",r->chave,r->dir->chave,fb_no(r->dir));if(fb_no(r->dir)<=0){if(fb_no(r->dir)==0)printf("      Observacao: FB do filho = 0, caso comum apos remocao.\n");return rotacao_esquerda(r);}printf("      Caso duplo: Parte 2.\n");}return r;}
+
+static NO*inserir_no(NO*r,int chave,int*ok){if(r==NULL){NO*n=no_criar(chave);*ok=(n!=NULL);return n;}if(chave<r->chave)r->esq=inserir_no(r->esq,chave,ok);else if(chave>r->chave)r->dir=inserir_no(r->dir,chave,ok);else{*ok=0;return r;}return rebalancear(r,"insercao");}
+static NO*menor(NO*r){while(r!=NULL&&r->esq!=NULL)r=r->esq;return r;}
+static NO*remover_no(NO*r,int chave,int*ok){NO*aux;if(r==NULL){*ok=0;return NULL;}printf("  Procurando %d no no %d.\n",chave,r->chave);if(chave<r->chave)r->esq=remover_no(r->esq,chave,ok);else if(chave>r->chave)r->dir=remover_no(r->dir,chave,ok);else{*ok=1;printf("  Encontrou %d para remocao.\n",r->chave);if(r->esq==NULL){aux=r->dir;free(r);return aux;}if(r->dir==NULL){aux=r->esq;free(r);return aux;}aux=menor(r->dir);printf("  Dois filhos: sucessor=%d.\n",aux->chave);r->chave=aux->chave;r->dir=remover_no(r->dir,aux->chave,ok);}return rebalancear(r,"remocao");}
+static int balanceada_no(NO*r){int f;if(r==NULL)return 1;f=fb_no(r);return f>=-1&&f<=1&&balanceada_no(r->esq)&&balanceada_no(r->dir);}
+static void imprimir_no(NO*r,int nivel){int i;if(r==NULL)return;imprimir_no(r->dir,nivel+1);for(i=0;i<nivel;i++)printf("        ");printf("%d [h=%d FB=%+d]\n",r->chave,r->altura,fb_no(r));imprimir_no(r->esq,nivel+1);}
+static void apagar_no(NO*r){if(r==NULL)return;apagar_no(r->esq);apagar_no(r->dir);free(r);}
+AVL*avl_criar(void){AVL*a=(AVL*)malloc(sizeof(AVL));if(a!=NULL)a->raiz=NULL;return a;}
+int avl_inserir(AVL*a,int chave){int ok=0;if(a==NULL)return 0;a->raiz=inserir_no(a->raiz,chave,&ok);return ok;}
+int avl_remover(AVL*a,int chave){int ok=0;if(a==NULL)return 0;a->raiz=remover_no(a->raiz,chave,&ok);return ok;}
+void avl_imprimir(AVL*a){if(a==NULL||a->raiz==NULL){printf("<arvore vazia>\n");return;}imprimir_no(a->raiz,0);}
+int avl_esta_balanceada(AVL*a){return a!=NULL&&balanceada_no(a->raiz);}
+void avl_apagar(AVL**a){if(a==NULL||*a==NULL)return;apagar_no((*a)->raiz);free(*a);*a=NULL;}
