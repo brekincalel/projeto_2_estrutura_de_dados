@@ -12,5 +12,11 @@ size_t avl_tamanho(const AVL *avl);
 size_t avl_altura(const AVL *avl);
 const METRICAS_ARVORE *avl_metricas(const AVL *avl);
 void avl_apagar(AVL **avl);
+bool avl_salvar(const AVL *avl, const char *caminho, const char *coluna,
+                TIPO_CAMPO tipo_chave,
+                const char *arquivo_dados);
+AVL *avl_carregar(const char *caminho, const char *coluna,
+                  TIPO_CAMPO tipo_chave,
+                  const char *arquivo_dados);
 
 #endif

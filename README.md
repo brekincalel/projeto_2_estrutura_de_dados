@@ -2,7 +2,7 @@
 
 SCC0202 — Algoritmos e Estruturas de Dados I. Implementação em C de índices com ABB, AVL e rubro-negra sobre os datasets de asteroides e Mapa de Empresas do Projeto 1.
 
-Este documento é um **plano de ação**, baseado no [enunciado](materiais_locais/projeto2.pdf), nos materiais do professor e no código atual. As etapas desmarcadas ainda precisam ser implementadas. Os comandos de execução apresentados são exemplos-alvo, não funcionalidades já disponíveis.
+Este documento é um **plano de ação**, baseado no [enunciado](materiais_locais/projeto2.pdf), nos materiais do professor e no código atual. As etapas desmarcadas ainda têm implementação ou critérios de aceite pendentes. Os comandos de execução apresentados são exemplos-alvo, não funcionalidades já disponíveis.
 
 ## Diagnóstico inicial
 
@@ -11,13 +11,41 @@ Revisão de 19/11/2026. Referência anterior: [Projeto 1](https://github.com/Lui
 | Componente | Estado observado | Próxima ação |
 | --- | --- | --- |
 | [CSV](src/csv.c), [ITEM](src/item.c), [reader](src/reader.c), [NASA](src/reader_nasa.c), [empresas](src/reader_empresas.c) e [header privado](src/reader_privado.h) | Os seis arquivos são idênticos aos do Projeto 1. Já leem um registro por chamada e preservam o texto original. | Reaproveitar parsing, acrescentar offsets e leitura direta; revisar contratos herdados da base em memória. |
-| [Chave](lib/chave.h) e [implementação](src/chave.c) | Já existem chave tipada, cópia de textos, lista dinâmica de offsets e métricas compartilhadas. | Corrigir include de `arvore_comum.h`, inexistente, e a guarda antiga do header; consolidar responsabilidades. |
-| [ABB](src/abb.c), [AVL](src/avl.c) e [rubro-negra](src/rubro_negra.c) | Já possuem inserção, busca, altura, liberação, métricas e vários offsets por chave. | Revisar invariantes e memória; implementar persistência fiel. Ainda não foram certificadas por testes nesta revisão. |
+| [Chave](lib/chave.h) e [implementação](src/chave.c) | Já existem chave tipada, cópia de textos, lista dinâmica de offsets e métricas compartilhadas. | Include e guarda foram corrigidos; ausentes ordenam por último e árvores rejeitam mistura de tipos. Compilar e testar ainda está pendente. |
+| [ABB](src/abb.c), [AVL](src/avl.c) e [rubro-negra](src/rubro_negra.c) | Inserção, busca, altura, liberação e métricas. | Implementadas APIs locais de persistência. Rubro-negra foi convertida para LLRB. Invariantes ainda precisam de compilação e testes funcionais. |
 | [ITEM atual](lib/item.h) | Representa a linha completa, sem offset, e mantém contratos BASE/RESULTADOS/ORDER do trabalho anterior. | Separar registro temporário e item compacto do índice. |
-| Aplicação | [makefile](makefile) vazio; não há programa principal, persistência, consultas ou suíte de testes. | Implementar por etapas, começando pelos contratos e build. |
+| Aplicação | Ainda não há programa principal nem consultas. Há build dos módulos, testes básicos e helper de indexação sequencial. | Criar CLI, ligar seleção das árvores ao indexador e implementar busca por offset. |
 | Materiais locais | [.gitignore](.gitignore) vazio; vários arquivos de [materiais_locais/](materiais_locais/) já são rastreados, inclusive objetos e executável de exemplo. | Combinar política de versionamento. A afirmação antiga de que a pasta estaria ignorada não corresponde ao estado atual. |
 
 Verificação executada: `gcc -std=c11 -Wall -Wextra -Wpedantic -Ilib -fsyntax-only src/*.c`. Falhou no include inexistente de [src/chave.c](src/chave.c). Isso é diagnóstico de compilação, não teste funcional.
+
+## Atualização após o fetch e decisões implementadas
+
+O commit `de2a5fc` foi integrado em fast-forward. Os dois datasets agora estão
+em `data/`; o [makefile](makefile) continua vazio. A tabela acima registra o
+estado anterior a essa atualização.
+
+- A árvore rubro-negra adotada é LLRB, com elos vermelhos inclinados à esquerda,
+  sem ponteiro de pai nem sentinela. O cabeçalho do índice identifica a variante.
+- Ausentes ordenam depois dos valores presentes em todas as árvores. Tipos
+  diferentes ordenam pelo valor de `TIPO_CAMPO`; cada índice deve usar um tipo.
+- `ITEM` do Projeto 1 permanece uma linha temporária. O índice mantém apenas
+  cópias tipadas das chaves e offsets; `ftello` pode ser capturado pelo futuro
+  coordenador imediatamente antes de `reader_ler`, sem alterar CSV ou reader.
+- ABB, AVL e LLRB já têm APIs locais de salvar/carregar. A serialização preserva
+  pré-ordem, offsets e metadados de balanceamento; a carga confere metadados do
+  dataset, tipo da chave e invariantes estruturais. O formato v2 usa larguras
+  fixas e little-endian para números inteiros, offsets e bits de `double` IEEE-754.
+  A identidade da base é caminho, tamanho e timestamps de modificação/metadados;
+  não é hash e pode não detectar alterações que preservem esses metadados.
+- O [makefile](makefile) compila a biblioteca `libindice.a` e oferece `make test`.
+  A CLI e o executável `trabalho` ainda não existem.
+- [indexador_ler](lib/indexador.h) captura `ftello` antes de cada registro e
+  chama um callback para inserir a chave; CSV e reader permanecem inalterados.
+- Há testes básicos em [tests/test_arvores.c](tests/test_arvores.c), cobrindo as
+  três árvores, persistência e offsets CRLF. Ainda precisam ser compilados e
+  executados; esta máquina não tem GCC/Clang nem Make disponíveis.
+- A recuperação de registros e a saída por offset ainda não foram implementadas.
 
 ## Requisitos essenciais do enunciado
 
@@ -42,25 +70,23 @@ Recomendação de evolução, ainda não implementada:
 | --- | --- |
 | REGISTRO temporário | Atual representação da linha, com campos, texto original e offset. Liberado após extrair a informação necessária. O esquema pertence ao leitor. |
 | CHAVE | Tipo, indicador de ausência e valor próprio; textos são copiados para sobreviver ao registro temporário. |
-| ITEM do índice | CHAVE e coleção de offsets. O nó acrescenta filhos e metadados da árvore. Atende explicitamente ao ITEM exigido pelo enunciado. |
+| ITEM do índice | O nó privado (`NO`) de cada árvore contém CHAVE e coleção de offsets, além de filhos e metadados. |
 
-Migrar o ITEM completo atual para REGISTRO e reservar ITEM para a associação compacta é uma proposta de refatoração, não uma API existente. Se o grupo escolher outros nomes, documentar qual TAD cumpre o papel de ITEM do índice. **Adicionar offset ao ITEM atual e guardar a linha inteira em cada nó não resolve o requisito de memória.**
+Para minimizar mudanças no CSV e no reader, o ITEM herdado continua representando somente o registro corrente. O coordenador captura o offset ao redor da leitura, extrai a chave e a árvore copia apenas chave e offset; então o ITEM é liberado. Assim o nó da árvore cumpre o papel de item compacto do índice, sem guardar a linha completa. **Não acumular ITEMs nem linhas na árvore.**
 
 Manter a coleção de offsets no ITEM ou em módulo próprio; separar métricas do TAD chave. Preservar três TADs de árvore com interfaces compatíveis. Uma fachada pequena pode selecionar a implementação na aplicação, sem fundir as árvores.
 
-Decisões a registrar antes da integração:
+Decisões adotadas nesta etapa:
 
-- Um tipo de chave por índice, determinado pela coluna. Rejeitar misturas silenciosas de tipos.
-- Uma ordem única para ausentes: hoje [item.c](src/item.c) coloca ausentes por último e [chave.c](src/chave.c) por primeiro. Sugestão: ausentes por último em todas as árvores.
+- Um tipo de chave por índice, determinado pela coluna. As árvores agora rejeitam mistura de tipos; a persistência recebe e valida o tipo declarado.
+- Ausentes ficam por último em todas as árvores, alinhados a [item.c](src/item.c).
 - Consultas numéricas com ponto decimal; texto exato; booleanos `true`/`false` nas consultas, embora o CSV NASA use `True`/`False`.
 - Literal para consultar valores ausentes, não definido no enunciado. Uma opção é valor vazio em `KEY|coluna|`; documentar e testar antes de adotar. Ausência não é zero nem falso.
-- Posse da memória: árvore possui chave e offsets; busca empresta sua coleção; registro temporário pode ser liberado após inserção. Documentar invalidação dos retornos por inserções/liberação.
+- Posse da memória: árvore possui cópias das chaves e offsets; busca empresta a coleção até mutação/destruição; o registro temporário pode ser liberado após inserção.
 
 ### Escolher conscientemente a variante rubro-negra
 
-As [notas da parte 1](materiais_locais/notas-aulas-red-back-tree-parte1.pdf) e [parte 2](materiais_locais/notas-aula-black-tree-parte2-v2.pdf) ensinam **LLRB**, com ligações vermelhas inclinadas à esquerda. O [código atual](src/rubro_negra.c) usa a variante clássica com ponteiro para o pai e sentinela NIL. Isso não demonstra um erro: o enunciado pede rubro-negra sem especificar a variante.
-
-Recomenda-se alinhar com LLRB para facilitar a justificativa com o material da disciplina. Antes de reescrever, registrar a escolha do grupo e esclarecer eventual exigência do professor. Se mantiver a clássica, validar suas propriedades próprias; não misturar correções das duas variantes. Decidir antes da persistência e dos testes de cor.
+As [notas da parte 1](materiais_locais/notas-aulas-red-back-tree-parte1.pdf) e [parte 2](materiais_locais/notas-aula-black-tree-parte2-v2.pdf) ensinam **LLRB**, com ligações vermelhas inclinadas à esquerda. Esta é a variante adotada em [src/rubro_negra.c](src/rubro_negra.c). Inserção e validação seguem as invariantes LLRB; persistência grava cores e rejeita árvores com elo vermelho à direita ou alturas negras diferentes.
 
 Adotar a convenção já utilizada nas árvores e na [AVL completa do professor](materiais_locais/atividade-01-avl-completa/avl.c): vazio tem altura 0, folha tem altura 1. Remoção de chaves aparece nos exercícios, mas não é exigida pelos modos index/search; não deve atrasar a entrega.
 
@@ -68,8 +94,8 @@ Adotar a convenção já utilizada nas árvores e na [AVL completa do professor]
 
 ### 1. Contratos e compilação
 
-- [ ] Registrar as decisões de representação, ausência, posse da memória e variante rubro-negra; alinhar headers antes de dividir implementação.
-- [ ] Corrigir include/guarda do módulo chave e organizar a migração REGISTRO/ITEM sem manter comparadores divergentes.
+- [x] Registrar as decisões de representação, ausência, posse da memória e variante rubro-negra; alinhar headers antes de dividir implementação.
+- [x] Corrigir include/guarda do módulo chave e definir o ITEM existente como registro temporário; o nó privado de cada árvore guarda somente chave e offsets.
 - [ ] Preencher o build com C11, avisos, include de [lib/](lib/) e suporte POSIX para `ftello`, `fseeko` e relógio monotônico. Sugestão: `_POSIX_C_SOURCE=200809L` e `_FILE_OFFSET_BITS=64`.
 - [ ] Criar alvos de aplicação, testes e limpeza. Compilar somente a aplicação, sem os programas principais dos materiais do professor.
 - [ ] Adaptar os testes CSV/reader do Projeto 1, sem importar a arquitetura que carrega a base toda.
@@ -99,12 +125,13 @@ Adotar a convenção já utilizada nas árvores e na [AVL completa do professor]
 
 ### 4. Persistência fiel
 
-- [ ] Especificar formato versionado: assinatura, versão, árvore/variante, leitor, coluna, tipo da chave, identificação da base, limite aplicado e contagens.
-- [ ] Salvar raiz, nós e filhos por identificadores ou pré-ordem com nulos; chaves, ausências, listas de offsets e alturas/cores. Não gravar structs brutas com ponteiros ou depender de padding.
-- [ ] Definir codificação de inteiros, reais, comprimentos e offsets, verificando conversões para `off_t`.
-- [ ] Carregar diretamente os relacionamentos, sem reinserção. Na variante clássica, restaurar pais e sentinela própria da nova árvore.
-- [ ] Validar versão, comprimentos, contagens, referências, ciclos, offsets, tipos e invariantes. Rejeitar truncamentos/corrupções e liberar reconstruções parciais.
-- [ ] Definir validação da base: tamanho e data de modificação de alta resolução são uma proteção prática, mas não detectam toda alteração possível. Assinatura de conteúdo é mais forte, porém sua verificação integral exige reler a base. Documentar a política e suas limitações sem introduzir varredura da base para executar buscas.
+- [x] Especificar formato versionado v2 com assinatura, árvore/variante, coluna, tipo da chave e identidade prática da base. Associar leitor, limite e contagens ao formato quando a aplicação definir esses dados.
+- [x] Salvar nós e filhos em pré-ordem com marcadores de nulos; persistir chaves, ausências, offsets e alturas/cores, sem ponteiros nem structs brutas.
+- [x] Usar larguras fixas little-endian para inteiros, comprimentos e offsets; preservar double IEEE-754 e verificar conversões para `off_t`.
+- [x] Carregar diretamente a topologia, sem reinserção; a LLRB não usa pais nem sentinela.
+- [x] Validar tipo, ordenação, offsets dentro do arquivo, alturas e balanceamentos, cores, inclinação à esquerda, altura negra, truncamento e bytes extras; liberar reconstruções parciais.
+- [x] Usar caminho, tamanho e timestamps de modificação/metadados para compatibilidade da base; documentar que essa política não detecta toda alteração possível e não relê o CSV na busca.
+- [ ] Adicionar e executar testes de ida e volta, corrupção, incompatibilidade e invariantes das três árvores.
 
 **Aceite:** salvar → apagar → carregar preserva topologia, cores/alturas, valores e offsets; testes detectam corrupção e alteração usual da base. Carregar não incrementa métricas de inserção/rotação.
 

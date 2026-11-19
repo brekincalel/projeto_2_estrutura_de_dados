@@ -1,5 +1,5 @@
-#ifndef ARVORE_COMUM_H
-#define ARVORE_COMUM_H
+#ifndef CHAVE_H
+#define CHAVE_H
 
 #include "item.h"
 
@@ -25,7 +25,10 @@ typedef struct {
     size_t capacidade;
 } LISTA_OFFSETS;
 
-/* Textos sao copiados. Cada chave pode guardar varios offsets. */
+/* Textos sao copiados. Cada chave guarda offsets em ordem de insercao.
+ * Valores ausentes ordenam depois dos presentes; tipos ordenam pelo enum.
+ * Altura das arvores: vazia=0, folha=1. Comparacoes contam uma visita a
+ * chave; rotacoes contam cada rotacao elementar; cores contam mudancas reais. */
 bool chave_arvore_valida(const CAMPO *campo);
 bool chave_arvore_copiar(CHAVE_ARVORE *destino, const CAMPO *origem);
 int chave_arvore_comparar(const CHAVE_ARVORE *a, const CAMPO *b);

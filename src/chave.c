@@ -1,4 +1,4 @@
-#include "arvore_comum.h"
+#include "chave.h"
 
 #include <math.h>
 #include <stdint.h>
@@ -39,8 +39,9 @@ bool chave_arvore_copiar(CHAVE_ARVORE *destino, const CAMPO *origem) {
 int chave_arvore_comparar(const CHAVE_ARVORE *a, const CAMPO *b) {
     if (a->campo.tipo != b->tipo)
         return a->campo.tipo < b->tipo ? -1 : 1;
+    /* Ausentes ficam depois dos valores, igual a item_comparar_campo. */
     if (a->campo.ausente != b->ausente)
-        return a->campo.ausente ? -1 : 1;
+        return a->campo.ausente ? 1 : -1;
     if (a->campo.ausente) return 0;
 
     switch (a->campo.tipo) {

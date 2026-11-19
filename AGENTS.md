@@ -10,6 +10,11 @@ Projeto 1: https://github.com/LuizCunha4/projeto_1_estrutura_de_dados — revis�
 
 ## Estado inicial registrado em 19/11/2026
 
+Este retrato antecede o fast-forward `de2a5fc` e as alterações locais descritas
+em README.md. A atualização trouxe os datasets e plano; a implementação abaixo
+foi iniciada depois. Reconciliar esta lista com o código antes de usar como
+diagnóstico atual.
+
 - Existem inserção/busca nas três árvores e módulo comum [chave.h](lib/chave.h)/[chave.c](src/chave.c), com listas de offsets e métricas. Não presumir que é preciso começar do zero nem que estão certificadas.
 - [src/chave.c](src/chave.c) inclui `arvore_comum.h`, inexistente; [lib/chave.h](lib/chave.h) mantém guarda antiga. A verificação de sintaxe falhou nesse include.
 - [makefile](makefile) vazio; ainda não há programa principal, persistência, parser de consultas ou suíte de testes. Não afirmar que o programa ou testes completos passaram.
@@ -39,7 +44,7 @@ Projeto 1: https://github.com/LuizCunha4/projeto_1_estrutura_de_dados — revis�
 - Não transformar chave em módulo genérico de CSV, CLI e rotações. Preferir tipos opacos e contratos explícitos nos headers.
 - Leitor possui esquema, mas não fecha FILE recebido; registros dependentes devem morrer antes do leitor. Árvore copia valores necessários e não depende do registro após inserção.
 - Retornos de busca são emprestados: não liberar/modificar vetor interno; documentar validade perante inserções e destruição.
-- Decisões pendentes: nomes REGISTRO/ITEM, variante rubro-negra, literal e ordem de ausentes, política de validação da base. Seguir recomendações do README quando apropriado e registrar desvios; continuar tarefas independentes dessas decisões.
+- Decisões pendentes: literal para consulta de ausentes e política mais forte de validação da base. Variante LLRB, ausência por último e manutenção do ITEM do Projeto 1 como registro temporário foram adotadas no README; não reabrir sem novo pedido do grupo.
 - Manter números/booleanos tipados e igualdade exata de reais; rejeitar não finitos/conversões inválidas. Códigos IBGE são texto.
 - NASA usa `True`/`False` no CSV; consultas usam `true`/`false`. Empresas tem blocos independentes, prefixo interno `estado.`, separadora `_separador` e ausência `-` no tempo médio.
 
@@ -62,3 +67,13 @@ Testar especialmente offsets CRLF/UTF-8, duplicatas, LL/RR/LR/RL, invariantes da
 Não alterar materiais didáticos para corrigir a aplicação nem executar seus binários precompilados como validação do código do grupo. Combinar política de dados e artefatos; não versionar índices/build/resultados volumosos por acidente.
 
 Ao concluir etapas, informar mudanças, verificações e limitações; atualizar README e este arquivo. Não marcar planejamento como implementação concluída. Experimentos exigem duas bases, três árvores, 10 repetições, consultas fixas e testes t pareados conforme o plano. Nunca fabricar medições.
+
+## Estado após integração de `de2a5fc`
+
+- O fast-forward foi integrado e trouxe `data/asteroids.csv`, `data/mapa_empresas.csv`, o plano atualizado e este arquivo.
+- A chave usa `lib/chave.h`; comparador e árvores usam ausentes por último. Uma árvore rejeita chaves de tipo diferente da primeira chave inserida.
+- A árvore rubro-negra agora é LLRB recursiva, sem pai ou sentinela NIL. A persistência declara variante, coluna e tipo de chave.
+- Persistência v2 guarda pré-ordem, chaves, offsets, altura ABB/AVL e cores LLRB; inteiros e offsets usam codificação little-endian de largura fixa, reais exigem double IEEE-754. A carga confere ordenação, alturas/balanceamento, inclinação LLRB, altura negra e limites dos offsets.
+- A base é identificada por caminho, tamanho e timestamps do sistema de arquivos, não por hash. É possível não detectar alteração que preserve esses metadados.
+- CSV, reader e `ITEM` do Projeto 1 não foram alterados. `src/indexador.c` captura offsets ao redor de `reader_ler` via callback. O build dos módulos e testes básicos foram adicionados: `make` cria `libindice.a`; `make test` compila e executa `tests/test_arvores.c`.
+- Ainda faltam CLI, consultas e recuperação dos registros por offset. Os alvos de build/teste não têm execução confirmada porque este ambiente não dispõe de GCC/Clang nem Make.

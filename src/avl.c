@@ -1,4 +1,5 @@
 #include "avl.h"
+#include "persistencia_privado.h"
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -129,7 +130,8 @@ AVL *avl_criar(void) {
 
 bool avl_inserir(AVL *avl, const CAMPO *chave, off_t offset) {
     if (avl == NULL || !chave_arvore_valida(chave) || offset < 0 ||
-        avl->tamanho == SIZE_MAX)
+        avl->tamanho == SIZE_MAX ||
+        (avl->raiz != NULL && avl->raiz->chave.campo.tipo != chave->tipo))
         return false;
 
     bool sucesso = false, novo_no = false;
@@ -173,4 +175,111 @@ void avl_apagar(AVL **avl) {
     apagar_no((*avl)->raiz);
     free(*avl);
     *avl = NULL;
+}
+
+static bool salvar_no(FILE *f, const NO *no) {
+    uint8_t presente = no != NULL;
+    if (fwrite(&presente, 1, 1, f) != 1 || !presente)
+        return presente == 0;
+    CHAVE_ARVORE chave = no->chave;
+    LISTA_OFFSETS offsets = no->offsets;
+    return gravar_chave(f, &chave) && gravar_offsets(f, &offsets) &&
+           gravar_u32(f, (uint32_t)no->altura) &&
+           salvar_no(f, no->esquerda) && salvar_no(f, no->direita);
+}
+static NO *carregar_no(FILE *f, AVL *avl, TIPO_CAMPO tipo, bool *ok) {
+    uint8_t presente;
+    uint32_t altura;
+    if (fread(&presente, 1, 1, f) != 1 || presente > 1) {
+        *ok = false;
+        return NULL;
+    }
+    if (!presente) return NULL;
+
+    NO *no = calloc(1, sizeof(*no));
+    if (no == NULL) {
+        *ok = false;
+        return NULL;
+    }
+    if (!ler_chave(f, &no->chave, tipo) ||
+        !ler_offsets(f, &no->offsets) || !ler_u32(f, &altura) ||
+        altura == 0 || altura > INT32_MAX) {
+        *ok = false;
+        goto falha;
+    }
+    no->altura = (int)altura;
+    no->esquerda = carregar_no(f, avl, tipo, ok);
+    if (!*ok) goto falha;
+    no->direita = carregar_no(f, avl, tipo, ok);
+    if (!*ok) goto falha;
+    if (avl->tamanho == SIZE_MAX ||
+        abs(altura_no(no->esquerda) - altura_no(no->direita)) > 1 ||
+        no->altura != 1 + maximo(altura_no(no->esquerda),
+                                 altura_no(no->direita))) {
+        *ok = false;
+        goto falha;
+    }
+    ++avl->tamanho;
+    return no;
+
+falha:
+    apagar_no(no->esquerda);
+    apagar_no(no->direita);
+    chave_arvore_apagar(&no->chave);
+    offsets_apagar(&no->offsets);
+    free(no);
+    return NULL;
+}
+static bool validar_arvore(const NO *no, const CAMPO *minimo,
+                           const CAMPO *limite_superior, TIPO_CAMPO tipo,
+                           uint64_t tamanho_arquivo) {
+    if (no == NULL) return true;
+    int altura = 1 + maximo(altura_no(no->esquerda), altura_no(no->direita));
+    if (no->chave.campo.tipo != tipo || no->altura != altura ||
+        !offsets_no_arquivo(&no->offsets, tamanho_arquivo) ||
+        abs(altura_no(no->esquerda) - altura_no(no->direita)) > 1 ||
+        (minimo && chave_arvore_comparar(&no->chave, minimo) <= 0) ||
+        (limite_superior &&
+         chave_arvore_comparar(&no->chave, limite_superior) >= 0))
+        return false;
+    return validar_arvore(no->esquerda, minimo, &no->chave.campo, tipo,
+                          tamanho_arquivo) &&
+           validar_arvore(no->direita, &no->chave.campo, limite_superior, tipo,
+                          tamanho_arquivo);
+}
+
+bool avl_salvar(const AVL *avl, const char *caminho, const char *coluna,
+                TIPO_CAMPO tipo, const char *dados) {
+    uint64_t tamanho;
+    if (avl == NULL || coluna == NULL || !tipo_campo_valido(tipo) ||
+        !persist_caminhos_distintos(caminho, dados) ||
+        !persist_tamanho_arquivo(dados, &tamanho) ||
+        !validar_arvore(avl->raiz, NULL, NULL, tipo, tamanho)) return false;
+    FILE *f = fopen(caminho, "wb");
+    if (f == NULL) return false;
+    bool ok = persist_cabecalho(f, "avl", coluna, tipo, dados, true) &&
+              salvar_no(f, avl->raiz);
+    if (fclose(f) != 0) ok = false;
+    return ok;
+}
+
+AVL *avl_carregar(const char *caminho, const char *coluna, TIPO_CAMPO tipo,
+                  const char *dados) {
+    uint64_t tamanho;
+    if (caminho == NULL || !persist_tamanho_arquivo(dados, &tamanho))
+        return NULL;
+    FILE *f = fopen(caminho, "rb");
+    if (f == NULL) return NULL;
+    bool ok = persist_cabecalho(f, "avl", coluna, tipo, dados, false);
+    AVL *avl = ok ? avl_criar() : NULL;
+    if (ok && avl == NULL) ok = false;
+    if (ok) avl->raiz = carregar_no(f, avl, tipo, &ok);
+    if (ok) ok = validar_arvore(avl->raiz, NULL, NULL, tipo, tamanho);
+    if (ok && (fgetc(f) != EOF || ferror(f))) ok = false;
+    fclose(f);
+    if (!ok) {
+        avl_apagar(&avl);
+        return NULL;
+    }
+    return avl;
 }
