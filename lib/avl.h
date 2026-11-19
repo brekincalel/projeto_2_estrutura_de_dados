@@ -1,7 +1,7 @@
 #ifndef AVL_H
 #define AVL_H
 
-#include "arvore_comum.h"
+#include "chave.h"
 
 typedef struct avl AVL;
 

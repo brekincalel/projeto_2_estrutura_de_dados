@@ -1,7 +1,8 @@
 #ifndef RUBRO_NEGRA_H
 #define RUBRO_NEGRA_H
 
-#include "arvore_comum.h"
+#include "chave.h"
+#include "stdbool.h"
 
 typedef struct rubro_negra RUBRO_NEGRA;
 

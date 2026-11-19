@@ -1,7 +1,7 @@
 #ifndef ABB_H
 #define ABB_H
 
-#include "arvore_comum.h"
+#include "chave.h"
 
 typedef struct abb ABB;
 
