@@ -8,22 +8,16 @@ Leia o [plano e critérios de aceite](README.md). A fonte dos requisitos é o [e
 
 Projeto 1: https://github.com/LuizCunha4/projeto_1_estrutura_de_dados — revisão consultada `98f4cd56088971ccda40d6262fddc1be7861ece5`. Foram reutilizados CSV, ITEM e leitores. Não importar o fluxo que carrega a base inteira nem FILTER/SIM/ORDER/GROUP/CROSS: aqui são consultas `KEY|coluna|valor` e acesso por offset. A cópia temporária usada no planejamento não é dependência do projeto.
 
-## Estado inicial registrado em 19/11/2026
+## Histórico anterior à implementação atual
 
-Este retrato antecede o fast-forward `de2a5fc` e as alterações locais descritas
-em README.md. A atualização trouxe os datasets e plano; a implementação abaixo
-foi iniciada depois. Reconciliar esta lista com o código antes de usar como
-diagnóstico atual.
+Em 19/11/2026, antes do fast-forward `de2a5fc` e da implementação posterior, o
+repositório tinha include quebrado, makefile vazio, rubro-negra clássica e não
+possuía persistência ou testes. Esse retrato é apenas histórico e não deve ser
+usado como diagnóstico do checkout atual.
 
-- Existem inserção/busca nas três árvores e módulo comum [chave.h](lib/chave.h)/[chave.c](src/chave.c), com listas de offsets e métricas. Não presumir que é preciso começar do zero nem que estão certificadas.
-- [src/chave.c](src/chave.c) inclui `arvore_comum.h`, inexistente; [lib/chave.h](lib/chave.h) mantém guarda antiga. A verificação de sintaxe falhou nesse include.
-- [makefile](makefile) vazio; ainda não há programa principal, persistência, parser de consultas ou suíte de testes. Não afirmar que o programa ou testes completos passaram.
-- [reader.c](src/reader.c) já entrega um registro por vez, mas não fornece offsets/acesso aleatório. EOF/erro persistem no seu estado.
-- [ITEM](lib/item.h) representa linha completa e conserva contratos do Projeto 1. O plano propõe migrá-lo para REGISTRO temporário e reservar ITEM para chave + offsets; essa migração ainda não ocorreu.
-- ITEM coloca ausentes por último; chave coloca por primeiro. Unificar a regra antes da integração.
-- Rubro-negra atual é clássica, com pai e NIL; notas do professor são LLRB. Escolher/documentar variante antes de reescrever ou definir persistência. Não misturar algoritmos.
-- [.gitignore](.gitignore) vazio; materiais locais já rastreados, inclusive binários. Não afirmar que estão ignorados nem removê-los do Git sem escopo autorizado.
-- Havia alterações prévias nos três headers das árvores e arquivos não rastreados. Preservar trabalho do colega e verificar estado atual. Atualizar este retrato conforme houver implementação.
+Os materiais locais já rastreados, inclusive binários didáticos, continuam no
+repositório. Não removê-los do Git sem escopo autorizado e não executar seus
+binários precompilados como validação da aplicação.
 
 ## Invariantes obrigatórias
 
@@ -40,7 +34,7 @@ diagnóstico atual.
 
 ## Responsabilidades e memória
 
-- CSV: sintaxe e bytes originais. Leitor: esquema/dataset. CHAVE: valor tipado. ITEM compacto: chave e offsets. Árvores: estrutura/balanceamento. Persistência: formato. Aplicação: CLI e coordenação.
+- CSV: sintaxe e bytes originais. Leitor e `ITEM` herdado: esquema/dataset e registro temporário. CHAVE: valor tipado e lista de offsets. Nós privados das árvores: chave, offsets, estrutura e balanceamento. Persistência: formato. Aplicação: CLI e coordenação.
 - Não transformar chave em módulo genérico de CSV, CLI e rotações. Preferir tipos opacos e contratos explícitos nos headers.
 - Leitor possui esquema, mas não fecha FILE recebido; registros dependentes devem morrer antes do leitor. Árvore copia valores necessários e não depende do registro após inserção.
 - Retornos de busca são emprestados: não liberar/modificar vetor interno; documentar validade perante inserções e destruição.
@@ -54,13 +48,18 @@ Seguir dependências do README: contratos/build → offsets → árvores/itens �
 
 Antes de editar, ler headers/implementações envolvidos e executar `git status --short`. Não reverter alterações alheias. Mudanças de assinatura exigem atualizar declarações, definições, consumidores e testes juntos; combinar alterações nos headers compartilhados com o colega.
 
-Diagnóstico inicial, ainda falhando no include descrito:
+Verificação básica disponível:
 
 ```sh
-gcc -std=c11 -Wall -Wextra -Wpedantic -Ilib -fsyntax-only src/*.c
+make test
 ```
 
-O build futuro deve produzir `trabalho` e habilitar suporte POSIX/offsets grandes conforme README. Depois de implementado, usar `make` e alvos de teste realmente existentes; não apresentar alvos planejados como disponíveis. Não compilar os programas principais de [materiais_locais/](materiais_locais/) na aplicação.
+Em 20/11/2026, esse alvo compilou todos os módulos sem avisos e terminou com
+`test_arvores: ok`. O [makefile](makefile) já habilita C11, POSIX e offsets
+grandes e produz `libindice.a`; ainda falta o programa principal e o executável
+obrigatório `trabalho`. Não apresentar os testes básicos como certificação da
+aplicação completa nem compilar os programas principais de
+[materiais_locais/](materiais_locais/) na aplicação.
 
 Testar especialmente offsets CRLF/UTF-8, duplicatas, LL/RR/LR/RL, invariantes da variante rubro-negra escolhida, ABB degenerada/estouro de pilha, restauração de topologia idêntica, índices truncados/incompatíveis, consultas sobrepostas/repetidas, saída vazia e resultados iguais entre árvores. Usar sanitizadores quando disponíveis. Testes CSV/reader do Projeto 1 são candidatos a adaptação, não prova das novas APIs.
 
@@ -68,12 +67,13 @@ Não alterar materiais didáticos para corrigir a aplicação nem executar seus 
 
 Ao concluir etapas, informar mudanças, verificações e limitações; atualizar README e este arquivo. Não marcar planejamento como implementação concluída. Experimentos exigem duas bases, três árvores, 10 repetições, consultas fixas e testes t pareados conforme o plano. Nunca fabricar medições.
 
-## Estado após integração de `de2a5fc`
+## Estado atual em 20/11/2026
 
 - O fast-forward foi integrado e trouxe `data/asteroids.csv`, `data/mapa_empresas.csv`, o plano atualizado e este arquivo.
-- A chave usa `lib/chave.h`; comparador e árvores usam ausentes por último. Uma árvore rejeita chaves de tipo diferente da primeira chave inserida.
+- A chave usa `lib/chave.h`; comparador e árvores usam ausentes por último. As três árvores rejeitam chaves de tipo diferente da primeira chave inserida.
 - A árvore rubro-negra agora é LLRB recursiva, sem pai ou sentinela NIL. A persistência declara variante, coluna e tipo de chave.
 - Persistência v2 guarda pré-ordem, chaves, offsets, altura ABB/AVL e cores LLRB; inteiros e offsets usam codificação little-endian de largura fixa, reais exigem double IEEE-754. A carga confere ordenação, alturas/balanceamento, inclinação LLRB, altura negra e limites dos offsets.
 - A base é identificada por caminho, tamanho e timestamps do sistema de arquivos, não por hash. É possível não detectar alteração que preserve esses metadados.
 - CSV, reader e `ITEM` do Projeto 1 não foram alterados. `src/indexador.c` captura offsets ao redor de `reader_ler` via callback. O build dos módulos e testes básicos foram adicionados: `make` cria `libindice.a`; `make test` compila e executa `tests/test_arvores.c`.
-- Ainda faltam CLI, consultas e recuperação dos registros por offset. Os alvos de build/teste não têm execução confirmada porque este ambiente não dispõe de GCC/Clang nem Make.
+- `make test` foi executado com sucesso neste ambiente em 20/11/2026. A suíte cobre inserção/busca básica nas três árvores, chaves repetidas, rejeição de tipos mistos, ida e volta da persistência, algumas incompatibilidades, truncamento e captura de offsets CRLF.
+- Ainda faltam CLI, consultas, recuperação dos registros por offset, saída CSV, métricas da aplicação, testes abrangentes e experimentos.

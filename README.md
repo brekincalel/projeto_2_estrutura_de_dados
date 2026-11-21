@@ -4,34 +4,37 @@ SCC0202 — Algoritmos e Estruturas de Dados I. Implementação em C de índices
 
 Este documento é um **plano de ação**, baseado no [enunciado](materiais_locais/projeto2.pdf), nos materiais do professor e no código atual. As etapas desmarcadas ainda têm implementação ou critérios de aceite pendentes. Os comandos de execução apresentados são exemplos-alvo, não funcionalidades já disponíveis.
 
-## Diagnóstico inicial
+## Estado atual
 
-Revisão de 19/11/2026. Referência anterior: [Projeto 1](https://github.com/LuizCunha4/projeto_1_estrutura_de_dados), commit `98f4cd56088971ccda40d6262fddc1be7861ece5`.
+Revisão de 20/11/2026. Referência anterior: [Projeto 1](https://github.com/LuizCunha4/projeto_1_estrutura_de_dados), commit `98f4cd56088971ccda40d6262fddc1be7861ece5`.
 
 | Componente | Estado observado | Próxima ação |
 | --- | --- | --- |
-| [CSV](src/csv.c), [ITEM](src/item.c), [reader](src/reader.c), [NASA](src/reader_nasa.c), [empresas](src/reader_empresas.c) e [header privado](src/reader_privado.h) | Os seis arquivos são idênticos aos do Projeto 1. Já leem um registro por chamada e preservam o texto original. | Reaproveitar parsing, acrescentar offsets e leitura direta; revisar contratos herdados da base em memória. |
-| [Chave](lib/chave.h) e [implementação](src/chave.c) | Já existem chave tipada, cópia de textos, lista dinâmica de offsets e métricas compartilhadas. | Include e guarda foram corrigidos; ausentes ordenam por último e árvores rejeitam mistura de tipos. Compilar e testar ainda está pendente. |
-| [ABB](src/abb.c), [AVL](src/avl.c) e [rubro-negra](src/rubro_negra.c) | Inserção, busca, altura, liberação e métricas. | Implementadas APIs locais de persistência. Rubro-negra foi convertida para LLRB. Invariantes ainda precisam de compilação e testes funcionais. |
-| [ITEM atual](lib/item.h) | Representa a linha completa, sem offset, e mantém contratos BASE/RESULTADOS/ORDER do trabalho anterior. | Separar registro temporário e item compacto do índice. |
+| [CSV](src/csv.c), [ITEM](src/item.c), [reader](src/reader.c), [NASA](src/reader_nasa.c), [empresas](src/reader_empresas.c) e [header privado](src/reader_privado.h) | Permanecem como no Projeto 1: leem um registro por chamada e preservam o texto original. | Implementar a recuperação individual por offset sem reintroduzir o carregamento integral da base. |
+| [Chave](lib/chave.h) e [implementação](src/chave.c) | Chave tipada, cópia de textos, lista dinâmica de offsets e métricas compartilhadas. Ausentes ordenam por último e as três árvores rejeitam mistura de tipos. | Ampliar testes para todos os tipos, ausentes, entradas inválidas e falhas de alocação. |
+| [ABB](src/abb.c), [AVL](src/avl.c) e [rubro-negra](src/rubro_negra.c) | Inserção, busca, altura, liberação, métricas e persistência v2. A rubro-negra usa LLRB. | Ampliar testes de invariantes, sequências de rotações, estresse e corrupção de índices. |
+| [ITEM atual](lib/item.h) | Continua representando somente o registro temporário herdado. Os nós privados das árvores guardam cópias da chave e offsets. | Manter essa separação durante a integração da aplicação. |
 | Aplicação | Ainda não há programa principal nem consultas. Há build dos módulos, testes básicos e helper de indexação sequencial. | Criar CLI, ligar seleção das árvores ao indexador e implementar busca por offset. |
-| Materiais locais | [.gitignore](.gitignore) vazio; vários arquivos de [materiais_locais/](materiais_locais/) já são rastreados, inclusive objetos e executável de exemplo. | Combinar política de versionamento. A afirmação antiga de que a pasta estaria ignorada não corresponde ao estado atual. |
+| Build e artefatos | O [makefile](makefile) gera `libindice.a`, possui alvos `test` e `clean` e usa C11, avisos e suporte POSIX/offsets grandes. O [.gitignore](.gitignore) ignora build, biblioteca e futuro executável. | Adicionar `main.c` e fazer o alvo padrão gerar `trabalho`. Não incluir programas dos materiais didáticos. |
+| Materiais locais | Vários arquivos de [materiais_locais/](materiais_locais/) já são rastreados, inclusive objetos e executável de exemplo. | Não executar esses binários como validação nem removê-los sem decisão do grupo. |
 
-Verificação executada: `gcc -std=c11 -Wall -Wextra -Wpedantic -Ilib -fsyntax-only src/*.c`. Falhou no include inexistente de [src/chave.c](src/chave.c). Isso é diagnóstico de compilação, não teste funcional.
+Verificação executada em 20/11/2026: `make test` compilou todos os módulos sem
+avisos e terminou com `test_arvores: ok`. A suíte atual é básica e não certifica
+a aplicação completa, que ainda não existe.
 
 ## Atualização após o fetch e decisões implementadas
 
-O commit `de2a5fc` foi integrado em fast-forward. Os dois datasets agora estão
-em `data/`; o [makefile](makefile) continua vazio. A tabela acima registra o
-estado anterior a essa atualização.
+O commit `de2a5fc` foi integrado em fast-forward e os dois datasets estão em
+`data/`. A implementação posterior acrescentou build, indexador, persistência e
+testes básicos.
 
 - A árvore rubro-negra adotada é LLRB, com elos vermelhos inclinados à esquerda,
   sem ponteiro de pai nem sentinela. O cabeçalho do índice identifica a variante.
 - Ausentes ordenam depois dos valores presentes em todas as árvores. Tipos
   diferentes ordenam pelo valor de `TIPO_CAMPO`; cada índice deve usar um tipo.
 - `ITEM` do Projeto 1 permanece uma linha temporária. O índice mantém apenas
-  cópias tipadas das chaves e offsets; `ftello` pode ser capturado pelo futuro
-  coordenador imediatamente antes de `reader_ler`, sem alterar CSV ou reader.
+  cópias tipadas das chaves e offsets; [indexador_ler](lib/indexador.h) captura
+  `ftello` imediatamente antes de `reader_ler`, sem alterar CSV ou reader.
 - ABB, AVL e LLRB já têm APIs locais de salvar/carregar. A serialização preserva
   pré-ordem, offsets e metadados de balanceamento; a carga confere metadados do
   dataset, tipo da chave e invariantes estruturais. O formato v2 usa larguras
@@ -43,8 +46,9 @@ estado anterior a essa atualização.
 - [indexador_ler](lib/indexador.h) captura `ftello` antes de cada registro e
   chama um callback para inserir a chave; CSV e reader permanecem inalterados.
 - Há testes básicos em [tests/test_arvores.c](tests/test_arvores.c), cobrindo as
-  três árvores, persistência e offsets CRLF. Ainda precisam ser compilados e
-  executados; esta máquina não tem GCC/Clang nem Make disponíveis.
+  três árvores, chaves repetidas, rejeição de tipos mistos, ida e volta da
+  persistência, incompatibilidade de coluna/tipo, truncamento e offsets CRLF.
+  Eles foram compilados e executados com sucesso em 20/11/2026.
 - A recuperação de registros e a saída por offset ainda não foram implementadas.
 
 ## Requisitos essenciais do enunciado
@@ -62,19 +66,22 @@ estado anterior a essa atualização.
 
 ### Separar registro, chave e item do índice
 
-O TAD chave é uma boa proposta e já está parcialmente implementado. Deve cuidar de valor tipado, validação, cópia, comparação e liberação, sem conhecer CSV, datasets, rotações ou o arquivo completo de índice.
+O TAD chave cuida de valor tipado, validação, cópia, comparação e liberação, sem conhecer CSV, datasets, rotações ou o arquivo completo de índice.
 
-Recomendação de evolução, ainda não implementada:
+Separação adotada:
 
 | Papel | Conteúdo e duração |
 | --- | --- |
-| REGISTRO temporário | Atual representação da linha, com campos, texto original e offset. Liberado após extrair a informação necessária. O esquema pertence ao leitor. |
+| Registro temporário (`ITEM` herdado) | Linha corrente, com campos e texto original. É liberado após extrair a chave; o offset é mantido separadamente pelo indexador. O esquema pertence ao leitor. |
 | CHAVE | Tipo, indicador de ausência e valor próprio; textos são copiados para sobreviver ao registro temporário. |
-| ITEM do índice | O nó privado (`NO`) de cada árvore contém CHAVE e coleção de offsets, além de filhos e metadados. |
+| Nó do índice | O nó privado (`NO`) de cada árvore contém CHAVE e coleção de offsets, além de filhos e metadados. Não reutiliza o tipo `ITEM` herdado. |
 
-Para minimizar mudanças no CSV e no reader, o ITEM herdado continua representando somente o registro corrente. O coordenador captura o offset ao redor da leitura, extrai a chave e a árvore copia apenas chave e offset; então o ITEM é liberado. Assim o nó da árvore cumpre o papel de item compacto do índice, sem guardar a linha completa. **Não acumular ITEMs nem linhas na árvore.**
+Para minimizar mudanças no CSV e no reader, o ITEM herdado continua representando somente o registro corrente. O indexador captura o offset ao redor da leitura, extrai a chave e a árvore copia apenas chave e offset; então o ITEM é liberado. Assim o nó da árvore cumpre o papel de item compacto do índice, sem guardar a linha completa. **Não acumular ITEMs nem linhas na árvore.**
 
-Manter a coleção de offsets no ITEM ou em módulo próprio; separar métricas do TAD chave. Preservar três TADs de árvore com interfaces compatíveis. Uma fachada pequena pode selecionar a implementação na aplicação, sem fundir as árvores.
+A coleção de offsets e as métricas comuns ficam no módulo de chave, enquanto os
+nós permanecem privados a cada árvore. Preservar os três TADs com interfaces
+compatíveis. Uma fachada pequena pode selecionar a implementação na aplicação,
+sem fundir as árvores.
 
 Decisões adotadas nesta etapa:
 
@@ -96,18 +103,20 @@ Adotar a convenção já utilizada nas árvores e na [AVL completa do professor]
 
 - [x] Registrar as decisões de representação, ausência, posse da memória e variante rubro-negra; alinhar headers antes de dividir implementação.
 - [x] Corrigir include/guarda do módulo chave e definir o ITEM existente como registro temporário; o nó privado de cada árvore guarda somente chave e offsets.
-- [ ] Preencher o build com C11, avisos, include de [lib/](lib/) e suporte POSIX para `ftello`, `fseeko` e relógio monotônico. Sugestão: `_POSIX_C_SOURCE=200809L` e `_FILE_OFFSET_BITS=64`.
-- [ ] Criar alvos de aplicação, testes e limpeza. Compilar somente a aplicação, sem os programas principais dos materiais do professor.
+- [x] Preencher o build com C11, avisos, include de [lib/](lib/) e suporte POSIX para `ftello` e `fseeko`, usando `_POSIX_C_SOURCE=200809L` e `_FILE_OFFSET_BITS=64`.
+- [x] Criar alvos para biblioteca, testes e limpeza, sem compilar os programas principais dos materiais do professor.
+- [ ] Criar o programa principal e fazer `make` gerar o executável `trabalho`.
 - [ ] Adaptar os testes CSV/reader do Projeto 1, sem importar a arquitetura que carrega a base toda.
 
-**Aceite:** módulos compilam sem avisos e testes básicos passam; ao introduzir o programa principal, `make` gera `trabalho`. Esses alvos ainda não existem.
+**Aceite:** módulos compilam sem avisos e testes básicos passam, já confirmado em
+20/11/2026. A etapa só estará completa quando `make` também gerar `trabalho`.
 
 ### 2. Offsets e acesso direto
 
-- [ ] Abrir entrada em modo binário, consumir o cabeçalho e capturar `ftello` imediatamente antes de cada registro. Verificar erros e guardar `off_t` no registro temporário.
-- [ ] Expor acesso ao offset sem expor a estrutura interna. Não calcular posição a partir de texto decodificado ou número de linha.
+- [x] Implementar helper que, após o reader consumir o cabeçalho, captura `ftello` imediatamente antes de cada registro e verifica erros.
+- [x] Passar o `off_t` separadamente ao callback de inserção, sem expor a estrutura do registro nem calcular posição a partir de texto decodificado ou número de linha.
 - [ ] Implementar recuperação por `fseeko(..., SEEK_SET)` seguida de leitura individual, preservando os bytes originais. Tratar o estado EOF/erro persistente do leitor atual ao reposicionar.
-- [ ] Usar o fluxo ler → extrair chave/offset → inserir cópia compacta → liberar registro; não acumular linhas.
+- [x] Usar no indexador o fluxo ler → extrair chave/offset → inserir cópia compacta → liberar registro; não acumular linhas.
 - [ ] Testar LF, CRLF, CR, UTF-8, aspas, campos vazios, linhas longas e última linha sem terminador. O parser herdado também aceita campos multilinha; o enunciado assume uma linha por registro. A capacidade adicional não deve quebrar offsets.
 
 **Aceite:** offsets permitem reler exatamente os registros, fora de ordem e após EOF; cabeçalho não é indexado; memória dos registros não cresce com a base.
@@ -131,7 +140,7 @@ Adotar a convenção já utilizada nas árvores e na [AVL completa do professor]
 - [x] Carregar diretamente a topologia, sem reinserção; a LLRB não usa pais nem sentinela.
 - [x] Validar tipo, ordenação, offsets dentro do arquivo, alturas e balanceamentos, cores, inclinação à esquerda, altura negra, truncamento e bytes extras; liberar reconstruções parciais.
 - [x] Usar caminho, tamanho e timestamps de modificação/metadados para compatibilidade da base; documentar que essa política não detecta toda alteração possível e não relê o CSV na busca.
-- [ ] Adicionar e executar testes de ida e volta, corrupção, incompatibilidade e invariantes das três árvores.
+- [ ] Completar os testes de persistência. Ida e volta, regravação idêntica, incompatibilidade de coluna/tipo e truncamento já passam; ainda faltam corrupção variada, alteração da base e cobertura explícita de todas as invariantes.
 
 **Aceite:** salvar → apagar → carregar preserva topologia, cores/alturas, valores e offsets; testes detectam corrupção e alteração usual da base. Carregar não incrementa métricas de inserção/rotação.
 
